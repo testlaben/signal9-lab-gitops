@@ -11,18 +11,40 @@ cluster:
   releaseImage: quay.io/openshift-release-dev/ocp-release:4.14.9-x86_64
   foundationIngressBaseDomain: apps.zardoz.lab.signal9.gg
   importToACM: true
-  etcdSize: 8Gi
+  etcd:
+    storageClassName: "longhorn"
+    size: 8Gi
   pullSecretVault: "ocp-pull-secret"
   trustBundleConfigMap: user-ca-bundle
+  networking:
+    clusterNetwork:
+      cidr: 10.128.0.0/14
+      hostPrefix: 23
+    serviceNetwork:
+      cidr: 172.30.0.0/16
+  services:
+    api:
+      type: LoadBalancer
+      # If using nodePort, comment out above line, uncomment below and set port
+      # type: nodePort
+      # port: 30000
   sshPubKey: ""
   kubevirt:
     # If true, use a subdomain of the foundation cluster's ingress for workload ingress
     baseDomainPassthrough: true
+    # If you use external infrastructure for KubeVirt
+    # external:
+    #   # Point to secret containing kubeconfig for kubevirt cluster
+    #   kubeconfigSecret: kubeconfigsecret
+    #   kubeconfigKey: kubeconfig
   agent:
     createInfraEnv: true
     # Defaults to a new per-cluster namespace
     agentNamespaceOverride: null
-
+  proxy:
+    httpProxy: ""
+    httpsProxy: ""
+    noProxy: kubernetes,
 certManager:
   manageApiCert: true
   manageOauthCert: true
@@ -40,12 +62,18 @@ nodePools:
       enableRootVolumeCache: true
     agent:
       agentLabels: {}
-    nodeDrainTimeout: 600s  
+    nodeDrainTimeout: 600s
+    # enable if you have custom node configurations
+    nodeconfig:
+      - name: some-cluster-cm
+      - name: some-other-cm
     management:
       autoRepair: false
+      # InPlace for BM, Replace for Kubevirt
       upgradeType: Replace
 
 agent:
+  imageType: full-iso
   infraEnv:
     networkType: static
     ntpServers:
@@ -54,3 +82,6 @@ agent:
       - 172.18.42.11
 
 imageDigestMirror: []
+
+# Additional trust bundle for the cluster
+additionalTrustBundle: []

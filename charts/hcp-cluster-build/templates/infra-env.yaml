@@ -10,19 +10,32 @@ metadata:
     agentclusterinstalls.extensions.hive.openshift.io/location: {{ .Values.cluster.name }}
     networkType: {{ .Values.agent.infraEnv.networkType }}
 spec:
-{{ if .Values.agent.infraEnv.ntpServers }}
+{{- if .Values.agent.infraEnv.ntpServers }}
   additionalNTPSources:
 {{ range .Values.agent.infraEnv.ntpServers }}
     - {{ . }}
 {{ end }}
 {{ end }}
+{{ if .Values.additionalTrustBundle }}
+  additionalTrustBundle: {{ .Values.additionalTrustBundle | toYaml | nindent 4 }}
+{{ end }}
   agentLabels:
     agentclusterinstalls.extensions.hive.openshift.io/location: {{ .Values.cluster.name }}
   cpuArchitecture: x86_64
   ipxeScriptType: DiscoveryImageAlways
+  imageType: {{ .Values.agent.imageType | default "full-iso" }}
   nmStateConfigLabelSelector:
     matchLabels:
       infraenvs.agent-install.openshift.io: {{ .Values.cluster.name }}
+  {{- if .Values.cluster.proxy.useProxy }}
+  proxy:
+    httpProxy: {{ .Values.cluster.proxy.httpProxy }}
+    httpsProxy: {{ .Values.cluster.proxy.httpsProxy }}
+    noProxy: {{ .Values.cluster.proxy.noProxy }}
+    trustedCA:
+      name: {{ .Values.cluster.proxy.caBundle }}
+  networkType: {{ .Values.agent.infraEnv.networkType }}
+  {{- end }}
   pullSecretRef:
     name: {{ .Values.cluster.name }}-pull-secret
   sshAuthorizedKey: {{ .Values.cluster.sshPubKey }}

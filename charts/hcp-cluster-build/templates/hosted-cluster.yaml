@@ -41,7 +41,7 @@ spec:
           servingCertificate:
             name: {{ .Values.cluster.name }}-api-crt
     {{ end }}
-    {{ end }}
+    {{- end }}
     oauth:
       identityProviders:
         - name: local-admin 
@@ -70,32 +70,50 @@ spec:
             - profile
             issuer: https://login.home.signal9.gg/realms/Signal9-RHT
           type: OpenID
+  {{-  if .Values.cluster.proxy }}
+    proxy:
+      httpProxy: {{ .Values.cluster.proxy.httpProxy }}
+      httpsProxy: {{ .Values.cluster.proxy.httpsProxy }}
+      noProxy: {{ .Values.cluster.proxy.noProxy }}
+      trustedCA:
+        name: {{ .Values.cluster.proxy.caBundle }}
+  {{- end }}
   etcd:
     managed:
       storage:
         persistentVolume:
-          size: {{ .Values.cluster.etcdSize }}
+          {{- if .Values.cluster.etcd.storageClassName }}
+          storageClassName: {{ .Values.cluster.etcd.storageClassName }}
+          {{- end }}
+          size: {{ .Values.cluster.etcd.size }}
         type: PersistentVolume
     managementType: Managed
   fips: false
   networking:
     clusterNetwork:
-    - cidr: 10.132.0.0/14
+    - cidr: {{ .Values.networking.clusterNetwork.cidr | default "10.132.0.0/14" }}
+      hostPrefix: {{ .Values.networking.clusterNetwork.hostPrefix | default 23 }}
     networkType: OVNKubernetes
     serviceNetwork:
-    - cidr: 172.31.0.0/16
+    - cidr: {{ .Values.networking.serviceNetwork.cidr | default "172.31.0.0/16" }}
   platform:
-{{ if eq .Values.cluster.type "agent" }}
+{{- if eq .Values.cluster.type "agent" }}
     agent:
       agentNamespace: {{ .Values.cluster.agent.agentNamespaceOverride | default (print "clusters-" .Values.cluster.name) }}
     type: Agent
-{{ end }}
-{{ if eq .Values.cluster.type "kubevirt" }}
+{{- end }}
+{{- if eq .Values.cluster.type "kubevirt" }}
   platform:
     kubevirt:
       baseDomainPassthrough: {{ .Values.cluster.kubevirt.baseDomainPassthrough }}
+      {{- if .Values.cluster.kubevirt.external }}
+      credentials:
+        infraKubeConfigSecret:
+          name: {{ .Values.cluster.kubevirt.external.kubeconfigSecret }}
+          key: {{ .Values.cluster.kubevirt.external.kubeconfigKey | default "kubeconfig" }}
+      {{- end }}
     type: KubeVirt
-{{ end }}
+{{- end }}
   pullSecret:
     name: {{ .Values.cluster.name }}-pull-secret
   release:
@@ -103,9 +121,18 @@ spec:
   services:
   - service: APIServer
     servicePublishingStrategy:
+      {{- if eq .Values.cluster.services.api.type "LoadBalancer" }}
       loadBalancer:
-        hostname: api.{{ .Values.cluster.name }}.lab.signal9.gg
+        hostname: "api.{{ .Values.cluster.name }}.{{ .Values.cluster.baseDomain }}"
       type: LoadBalancer
+      {{- else if eq .Values.cluster.services.api.type "nodePort" }}
+      nodePort:
+        address: "api.{{ .Values.cluster.name }}.{{ .Values.cluster.baseDomain }}"
+        port: {{ .Values.cluster.services.api.port | default 30000 }}
+      type: NodePort
+      {{- else }}
+      type: Route
+      {{- end }}
   - service: OAuthServer
     servicePublishingStrategy:
       type: Route

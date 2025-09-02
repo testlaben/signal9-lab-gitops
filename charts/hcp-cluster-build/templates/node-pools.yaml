@@ -10,16 +10,32 @@ metadata:
 spec:
   arch: amd64
   clusterName: {{ $.Values.cluster.name }}
-{{ if $.Values.imageDigestMirror }}
+  {{- if or $.Values.imageDigestMirror .nodeconfig }}
   config:
+    {{ if $.Values.imageDigestMirror }}
     - name: {{ $.Values.cluster.name }}-idms-config
-{{ end }}
+    {{ end }}
+    {{ if .nodeconfig }}
+    {{- toYaml .nodeconfig | nindent 4 }}
+    {{- end }}
+{{ if .nodeLabels }}
+  nodeLabels:
+    {{- range $key, $value := .nodeLabels }}
+      {{ $key }}: {{ $value | quote }}
+    {{- end }}
   management:
     {{ toYaml .management | nindent 4 }}
   nodeDrainTimeout: {{ .nodeDrainTimeout }}
   platform:
 {{ if eq $.Values.cluster.type "kubevirt" }}
     kubevirt:
+      {{- if eq .kubevirt.network.attachDefaultPodNetwork false }}
+      attachDefaultNetwork: false
+      {{- end }}
+      {{- if .kubevirt.networks.vlans }}
+      additionalNetworks:
+        {{- toYaml .kubevirt.networks.vlans | nindent 8 }}
+      {{- end }}
       compute:
         cores: {{ .kubevirt.resources.cpu }}
         memory: {{ .kubevirt.resources.memory }}
@@ -31,6 +47,10 @@ spec:
         persistent:
           size: {{ .kubevirt.resources.rootVolumeSize }}
         type: Persistent
+      {{- if .kubevirt.zone }}
+      nodeSelector:
+        topology.kubernetes.io/zone: {{ .kubevirt.zone }}
+      {{- end }}
     type: KubeVirt
 {{ end }}
 {{ if eq $.Values.cluster.type "agent" }}
